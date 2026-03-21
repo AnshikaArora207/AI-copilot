@@ -7,18 +7,25 @@ load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 
-def ask_gemini(question: str, page_content: str) -> str:
-    trimmed_content = page_content[:8000]
+def ask_gemini(question: str, page_content: str, memory_results: list = []) -> str:
+    trimmed_content = page_content[:4000]
+
+    # Build memory context from RAG results
+    memory_context = ""
+    if memory_results:
+        memory_context = "\n\nRELEVANT PAGES FROM YOUR BROWSING HISTORY:\n"
+        for item in memory_results:
+            memory_context += f"\n[{item['title']} - {item['url']}]\n{item['content']}\n"
 
     prompt = f"""You are a helpful AI assistant embedded in a browser extension.
 
-The user is currently viewing a webpage with the following content:
+CURRENT PAGE CONTENT:
 ---
 {trimmed_content}
 ---
-
-Answer the user's question based on the page content above.
-If the answer is not in the page content, say so clearly and answer from your general knowledge if relevant.
+{memory_context}
+Answer the user's question using the current page content and browsing history above.
+If the answer is not found in either, say so clearly and answer from general knowledge if relevant.
 Keep your answer concise and clear.
 
 User question: {question}"""
