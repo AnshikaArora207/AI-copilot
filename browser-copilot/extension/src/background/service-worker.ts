@@ -17,20 +17,25 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       pageTitle: message.title,
     })
 
-    // Store in ChromaDB memory (fire and forget - don't block)
-    fetch(`${BACKEND_URL}/remember`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        url: message.url,
-        title: message.title,
-        content: message.content,
-      }),
-    }).catch(() => {
-      // Silently ignore - backend might not be running
-    })
+    // Await the fetch so the service worker stays alive until it completes
+    ;(async () => {
+      try {
+        await fetch(`${BACKEND_URL}/remember`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: message.url,
+            title: message.title,
+            content: message.content,
+          }),
+        })
+      } catch {
+        // Backend might not be running - silently ignore
+      }
+      sendResponse({ success: true })
+    })()
 
-    sendResponse({ success: true })
+    return true // Keep message channel open until sendResponse is called
   }
   return true
 })
