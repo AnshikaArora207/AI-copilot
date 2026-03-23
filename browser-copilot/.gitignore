@@ -7,9 +7,15 @@ backend/**/*.pyc
 # Secrets - NEVER commit this
 backend/.env
 
+#ChromaDB local data
+backend/chroma_data/
+
 # Node
 extension/node_modules/
 extension/dist/
 
 # macOS
 .DS_Store
+
+#venv\Scripts\activate   
+#uvicorn main:app --reload
