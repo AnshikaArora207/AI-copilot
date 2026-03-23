@@ -146,57 +146,6 @@ TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "go_back",
-            "description": "Navigate to the previous page in browser history (like clicking the back button)",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "description": {
-                        "type": "string",
-                        "description": "Human readable description of the action",
-                    },
-                },
-                "required": ["description"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "go_forward",
-            "description": "Navigate to the next page in browser history (like clicking the forward button)",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "description": {
-                        "type": "string",
-                        "description": "Human readable description of the action",
-                    },
-                },
-                "required": ["description"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "reload_page",
-            "description": "Reload/refresh the current page",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "description": {
-                        "type": "string",
-                        "description": "Human readable description of the action",
-                    },
-                },
-                "required": ["description"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
             "name": "scroll_to_element",
             "description": "Scroll the page until a specific element is visible in the viewport. Use before clicking elements that may be off-screen.",
             "parameters": {
@@ -239,7 +188,20 @@ TOOLS = [
 ]
 
 
+SIMPLE_COMMANDS = [
+    (["go back", "back button", "previous page", "navigate back"], "go_back", "Going back to previous page"),
+    (["go forward", "forward button", "next page", "navigate forward"], "go_forward", "Going forward"),
+    (["reload", "refresh", "relaod"], "reload_page", "Reloading the page"),
+]
+
+
 def run_agent(command: str, dom_structure: dict) -> list:
+    # Handle simple navigation commands without LLM to avoid tool calling issues
+    command_lower = command.lower()
+    for keywords, action_type, description in SIMPLE_COMMANDS:
+        if any(kw in command_lower for kw in keywords):
+            return [{"type": action_type, "description": description}]
+
     dom_summary = f"""
 Inputs/Forms: {json.dumps(dom_structure.get('inputs', []), indent=2)}
 Buttons: {json.dumps(dom_structure.get('buttons', []), indent=2)}
