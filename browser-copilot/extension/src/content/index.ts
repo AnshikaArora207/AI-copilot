@@ -83,7 +83,16 @@ function executeAction(action: {
     const el = document.querySelector(action.selector!) as HTMLElement
     if (!el) throw new Error(`Element not found: ${action.selector}`)
     el.focus()
+    // Full mouse event sequence for sites that listen to mousedown/mouseup
+    el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
     el.click()
+    // Fallback: if it's a submit button, also submit the parent form
+    const type = el.getAttribute('type')
+    if (type === 'submit' || el.tagName === 'BUTTON') {
+      const form = el.closest('form')
+      if (form) form.requestSubmit()
+    }
   } else if (action.type === 'fill_input') {
     const el = document.querySelector(action.selector!) as HTMLInputElement
     if (!el) throw new Error(`Element not found: ${action.selector}`)
@@ -91,6 +100,16 @@ function executeAction(action: {
     el.value = action.value || ''
     el.dispatchEvent(new Event('input', { bubbles: true }))
     el.dispatchEvent(new Event('change', { bubbles: true }))
+  } else if (action.type === 'press_enter') {
+    const el = document.querySelector(action.selector!) as HTMLElement
+    if (!el) throw new Error(`Element not found: ${action.selector}`)
+    el.focus()
+    el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }))
+    el.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }))
+    el.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }))
+    // Also try form submit
+    const form = el.closest('form')
+    if (form) form.requestSubmit()
   } else if (action.type === 'scroll_page') {
     window.scrollBy({ top: action.direction === 'down' ? 600 : -600, behavior: 'smooth' })
   }
@@ -107,6 +126,17 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       sendResponse({ success: false, error: String(e) })
     }
   }
+
+  // Sidebar requests fresh page content directly from this tab
+  if (message.type === 'GET_PAGE_CONTENT') {
+    sendResponse({
+      content: extractPageText(),
+      url: window.location.href,
+      title: document.title,
+      domStructure: extractInteractiveElements(),
+    })
+  }
+
   return true
 })
 

@@ -36,18 +36,31 @@ function App() {
     setMessages((prev) => [...prev, { role, content, isAction }])
   }
 
+  // ── Get fresh page data from active tab ─────────────────────────────────────
+
+  const getFreshPageData = async () => {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+    if (!tab.id) return null
+    try {
+      const data = await chrome.tabs.sendMessage(tab.id, { type: 'GET_PAGE_CONTENT' })
+      if (data?.title) setPageTitle(data.title)
+      return data
+    } catch {
+      // Content script not loaded on this page (e.g. chrome:// pages)
+      return null
+    }
+  }
+
   // ── Ask mode ────────────────────────────────────────────────────────────────
 
   const handleAsk = async (question: string) => {
     try {
-      const result = await new Promise<{ pageContent?: string }>((resolve) =>
-        chrome.storage.local.get(['pageContent'], resolve)
-      )
+      const pageData = await getFreshPageData()
 
       const response = await fetch(`${BACKEND_URL}/ask`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question, page_content: result.pageContent || '' }),
+        body: JSON.stringify({ question, page_content: pageData?.content || '' }),
       })
 
       if (!response.ok) throw new Error('Backend error')
@@ -64,14 +77,12 @@ function App() {
 
   const handleAct = async (command: string) => {
     try {
-      const result = await new Promise<{ domStructure?: object }>((resolve) =>
-        chrome.storage.local.get(['domStructure'], resolve)
-      )
+      const pageData = await getFreshPageData()
 
       const response = await fetch(`${BACKEND_URL}/agent`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command, dom_structure: result.domStructure || {} }),
+        body: JSON.stringify({ command, dom_structure: pageData?.domStructure || {} }),
       })
 
       if (!response.ok) throw new Error('Backend error')

@@ -57,6 +57,27 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "press_enter",
+            "description": "Press the Enter key on an input field to submit a search or form. Use this instead of clicking a search button when possible.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "selector": {
+                        "type": "string",
+                        "description": "CSS selector of the input field to press Enter on",
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Human readable description of the action",
+                    },
+                },
+                "required": ["selector", "description"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "scroll_page",
             "description": "Scroll the page up or down",
             "parameters": {
