@@ -117,7 +117,11 @@ Here are all the interactive elements currently available on the page:
 
 Use the provided tools to carry out the requested action step by step.
 Choose the most appropriate elements based on their text, type, placeholder, and purpose.
-If you cannot find a suitable element for the requested action, respond with a plain text message explaining why - do NOT call any tools."""
+
+IMPORTANT RULES:
+- When performing any search action, ALWAYS use fill_input followed immediately by press_enter on the same input element. Never stop after just filling a search box.
+- Only use click_element for non-search buttons (like subscribe, login, submit forms, etc.).
+- If you cannot find a suitable element for the requested action, respond with a plain text message explaining why - do NOT call any tools."""
 
     response = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
