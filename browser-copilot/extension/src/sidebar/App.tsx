@@ -2,9 +2,12 @@ import { useState, useEffect, useRef } from 'react'
 
 const BACKEND_URL = 'http://localhost:8000'
 
+type Mode = 'ask' | 'act'
+
 interface Message {
   role: 'user' | 'assistant'
   content: string
+  isAction?: boolean
 }
 
 function App() {
@@ -13,64 +16,112 @@ function App() {
   const [loading, setLoading] = useState(false)
   const [pageTitle, setPageTitle] = useState('')
   const [backendError, setBackendError] = useState(false)
+  const [mode, setMode] = useState<Mode>('ask')
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // Load page title from storage when sidebar opens
   useEffect(() => {
     chrome.storage.local.get(['pageTitle'], (result) => {
-      if (result.pageTitle) {
-        setPageTitle(result.pageTitle)
-      }
+      if (result.pageTitle) setPageTitle(result.pageTitle)
     })
-
-    // Check if backend is running
     fetch(`${BACKEND_URL}/health`)
       .then(() => setBackendError(false))
       .catch(() => setBackendError(true))
   }, [])
 
-  // Scroll to bottom on new message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  const sendMessage = async () => {
-    if (!input.trim() || loading) return
+  const addMessage = (content: string, role: 'user' | 'assistant', isAction = false) => {
+    setMessages((prev) => [...prev, { role, content, isAction }])
+  }
 
-    const userMessage = input.trim()
-    setInput('')
-    setMessages((prev) => [...prev, { role: 'user', content: userMessage }])
-    setLoading(true)
+  // ── Ask mode ────────────────────────────────────────────────────────────────
 
+  const handleAsk = async (question: string) => {
     try {
       const result = await new Promise<{ pageContent?: string }>((resolve) =>
         chrome.storage.local.get(['pageContent'], resolve)
       )
-      const pageContent = result.pageContent || ''
 
       const response = await fetch(`${BACKEND_URL}/ask`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: userMessage, page_content: pageContent }),
+        body: JSON.stringify({ question, page_content: result.pageContent || '' }),
       })
 
       if (!response.ok) throw new Error('Backend error')
-
       const data = await response.json()
-      setMessages((prev) => [...prev, { role: 'assistant', content: data.answer }])
+      addMessage(data.answer, 'assistant')
       setBackendError(false)
     } catch {
       setBackendError(true)
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: 'Could not reach the backend. Make sure it is running on localhost:8000.',
-        },
-      ])
-    } finally {
-      setLoading(false)
+      addMessage('Could not reach the backend. Make sure it is running on localhost:8000.', 'assistant')
     }
+  }
+
+  // ── Act mode ────────────────────────────────────────────────────────────────
+
+  const handleAct = async (command: string) => {
+    try {
+      const result = await new Promise<{ domStructure?: object }>((resolve) =>
+        chrome.storage.local.get(['domStructure'], resolve)
+      )
+
+      const response = await fetch(`${BACKEND_URL}/agent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command, dom_structure: result.domStructure || {} }),
+      })
+
+      if (!response.ok) throw new Error('Backend error')
+      const data = await response.json()
+      const actions: Array<{ type: string; description?: string; text?: string; selector?: string; value?: string; direction?: string }> = data.actions
+
+      // If model returned a plain text explanation
+      if (actions.length === 1 && actions[0].type === 'message') {
+        addMessage(actions[0].text || 'Could not complete the action.', 'assistant')
+        return
+      }
+
+      // Show planned steps
+      const plan = actions.map((a) => `• ${a.description || a.type}`).join('\n')
+      addMessage(`Executing ${actions.length} step(s):\n${plan}`, 'assistant', true)
+
+      // Get active tab and execute actions one by one
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+      if (!tab.id) throw new Error('No active tab found')
+
+      for (const action of actions) {
+        if (action.type === 'message') continue
+        await chrome.tabs.sendMessage(tab.id, { type: 'EXECUTE_ACTION', action })
+        await new Promise((r) => setTimeout(r, 600)) // delay between steps
+      }
+
+      addMessage('Done.', 'assistant', true)
+      setBackendError(false)
+    } catch {
+      setBackendError(true)
+      addMessage('Error executing actions. Make sure the backend is running.', 'assistant')
+    }
+  }
+
+  // ── Send ─────────────────────────────────────────────────────────────────────
+
+  const sendMessage = async () => {
+    if (!input.trim() || loading) return
+    const text = input.trim()
+    setInput('')
+    addMessage(text, 'user')
+    setLoading(true)
+
+    if (mode === 'ask') {
+      await handleAsk(text)
+    } else {
+      await handleAct(text)
+    }
+
+    setLoading(false)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -81,31 +132,47 @@ function App() {
     <div className="container">
       <div className="header">
         <span className="header-title">AI Copilot</span>
-        {backendError && <span className="badge error">Backend offline</span>}
-        {!backendError && <span className="badge ok">Connected</span>}
+        <div className="header-right">
+          {backendError && <span className="badge error">Backend offline</span>}
+          {!backendError && <span className="badge ok">Connected</span>}
+        </div>
       </div>
 
-      {pageTitle && (
-        <div className="page-bar">
-          <span className="page-label">Page:</span>
-          <span className="page-title">{pageTitle}</span>
-        </div>
-      )}
+      {/* Mode Toggle */}
+      <div className="mode-bar">
+        <button
+          className={`mode-btn ${mode === 'ask' ? 'active' : ''}`}
+          onClick={() => setMode('ask')}
+        >
+          Ask
+        </button>
+        <button
+          className={`mode-btn ${mode === 'act' ? 'active' : ''}`}
+          onClick={() => setMode('act')}
+        >
+          Act
+        </button>
+        {pageTitle && <span className="page-label-inline">{pageTitle}</span>}
+      </div>
 
       <div className="messages">
         {messages.length === 0 && (
-          <div className="empty">Ask me anything about this page...</div>
+          <div className="empty">
+            {mode === 'ask'
+              ? 'Ask me anything about this page...'
+              : 'Tell me what to do on this page...\ne.g. "Click the search button" or "Fill the email field with test@email.com"'}
+          </div>
         )}
         {messages.map((msg, i) => (
-          <div key={i} className={`message ${msg.role}`}>
-            <span className="role">{msg.role === 'user' ? 'You' : 'AI'}</span>
+          <div key={i} className={`message ${msg.role} ${msg.isAction ? 'action' : ''}`}>
+            <span className="role">{msg.role === 'user' ? 'You' : msg.isAction ? 'Agent' : 'AI'}</span>
             <p>{msg.content}</p>
           </div>
         ))}
         {loading && (
           <div className="message assistant">
-            <span className="role">AI</span>
-            <p className="thinking">Thinking...</p>
+            <span className="role">{mode === 'act' ? 'Agent' : 'AI'}</span>
+            <p className="thinking">{mode === 'act' ? 'Planning actions...' : 'Thinking...'}</p>
           </div>
         )}
         <div ref={messagesEndRef} />
@@ -117,12 +184,12 @@ function App() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Ask about this page..."
+          placeholder={mode === 'ask' ? 'Ask about this page...' : 'Tell me what to do...'}
           disabled={loading}
           autoFocus
         />
         <button onClick={sendMessage} disabled={loading || !input.trim()}>
-          Send
+          {mode === 'act' ? 'Run' : 'Send'}
         </button>
       </div>
     </div>

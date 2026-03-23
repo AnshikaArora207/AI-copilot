@@ -1,23 +1,119 @@
-function extractPageText(): string {
-  // Clone DOM to avoid modifying the actual page
-  const clone = document.cloneNode(true) as Document
+// ─── Selector Helper ────────────────────────────────────────────────────────
 
-  // Remove noise elements
-  const noiseSelectors = ['script', 'style', 'nav', 'footer', 'header', 'aside', 'noscript']
-  noiseSelectors.forEach((selector) => {
-    clone.querySelectorAll(selector).forEach((el) => el.remove())
-  })
+function getUniqueSelector(el: Element): string {
+  if (el.id) return `#${CSS.escape(el.id)}`
+  if (el.getAttribute('name')) return `[name="${el.getAttribute('name')}"]`
 
-  const text = clone.body?.innerText || ''
+  const parts: string[] = []
+  let current: Element | null = el
 
-  // Collapse excessive whitespace and limit size
-  return text.replace(/\s+/g, ' ').trim().slice(0, 10000)
+  while (current && current !== document.body && parts.length < 4) {
+    let selector = current.tagName.toLowerCase()
+    if (current.id) {
+      parts.unshift(`#${CSS.escape(current.id)}`)
+      break
+    }
+    const parent = current.parentElement
+    if (parent) {
+      const siblings = Array.from(parent.querySelectorAll(`:scope > ${selector}`))
+      if (siblings.length > 1) {
+        selector += `:nth-child(${siblings.indexOf(current) + 1})`
+      }
+    }
+    parts.unshift(selector)
+    current = current.parentElement
+  }
+  return parts.join(' > ')
 }
 
-function sendPageContent() {
-  const content = extractPageText()
+// ─── DOM Extraction ──────────────────────────────────────────────────────────
 
-  // Skip empty or very short pages (e.g. blank tabs)
+function extractPageText(): string {
+  const clone = document.cloneNode(true) as Document
+  clone.querySelectorAll('script, style, nav, footer, header, aside, noscript').forEach((el) =>
+    el.remove()
+  )
+  return (clone.body?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 10000)
+}
+
+function extractInteractiveElements() {
+  const inputs = Array.from(
+    document.querySelectorAll('input:not([type="hidden"]), textarea, select')
+  )
+    .slice(0, 20)
+    .map((el) => ({
+      type: el.getAttribute('type') || el.tagName.toLowerCase(),
+      id: el.id || '',
+      name: el.getAttribute('name') || '',
+      placeholder: el.getAttribute('placeholder') || '',
+      selector: getUniqueSelector(el),
+    }))
+
+  const buttons = Array.from(
+    document.querySelectorAll(
+      'button, [role="button"], input[type="submit"], input[type="button"]'
+    )
+  )
+    .slice(0, 20)
+    .map((el) => ({
+      text: (el.textContent || '').trim().slice(0, 60),
+      selector: getUniqueSelector(el),
+    }))
+
+  const links = Array.from(document.querySelectorAll('a[href]'))
+    .slice(0, 15)
+    .map((el) => ({
+      text: (el.textContent || '').trim().slice(0, 60),
+      href: el.getAttribute('href') || '',
+      selector: getUniqueSelector(el),
+    }))
+
+  return { inputs, buttons, links }
+}
+
+// ─── Action Executor ─────────────────────────────────────────────────────────
+
+function executeAction(action: {
+  type: string
+  selector?: string
+  value?: string
+  direction?: string
+}) {
+  if (action.type === 'click_element') {
+    const el = document.querySelector(action.selector!) as HTMLElement
+    if (!el) throw new Error(`Element not found: ${action.selector}`)
+    el.focus()
+    el.click()
+  } else if (action.type === 'fill_input') {
+    const el = document.querySelector(action.selector!) as HTMLInputElement
+    if (!el) throw new Error(`Element not found: ${action.selector}`)
+    el.focus()
+    el.value = action.value || ''
+    el.dispatchEvent(new Event('input', { bubbles: true }))
+    el.dispatchEvent(new Event('change', { bubbles: true }))
+  } else if (action.type === 'scroll_page') {
+    window.scrollBy({ top: action.direction === 'down' ? 600 : -600, behavior: 'smooth' })
+  }
+}
+
+// ─── Message Listener (from sidebar/service worker) ──────────────────────────
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message.type === 'EXECUTE_ACTION') {
+    try {
+      executeAction(message.action)
+      sendResponse({ success: true })
+    } catch (e) {
+      sendResponse({ success: false, error: String(e) })
+    }
+  }
+  return true
+})
+
+// ─── Send Page Data on Load ──────────────────────────────────────────────────
+
+function sendPageData() {
+  const content = extractPageText()
   if (content.length < 50) return
 
   chrome.runtime.sendMessage({
@@ -25,12 +121,12 @@ function sendPageContent() {
     content,
     url: window.location.href,
     title: document.title,
+    domStructure: extractInteractiveElements(),
   })
 }
 
-// Wait for page to fully load before extracting
 if (document.readyState === 'complete') {
-  sendPageContent()
+  sendPageData()
 } else {
-  window.addEventListener('load', sendPageContent)
+  window.addEventListener('load', sendPageData)
 }

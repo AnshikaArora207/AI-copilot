@@ -15,6 +15,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       pageContent: message.content,
       pageUrl: message.url,
       pageTitle: message.title,
+      domStructure: message.domStructure || {},
     })
 
     // Await the fetch so the service worker stays alive until it completes
