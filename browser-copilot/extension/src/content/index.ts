@@ -36,11 +36,11 @@ function extractPageText(): string {
   const clone = document.cloneNode(true) as Document
   clone.querySelectorAll('script, style, noscript').forEach((el) => el.remove())
 
-  let text = (clone.body?.innerText || '').replace(/\s+/g, ' ').trim()
+  let text = (clone.body?.textContent || '').replace(/\s+/g, ' ').trim()
 
   // For very minimal pages (e.g. Google homepage), use full body text
   if (text.length < 100) {
-    text = (document.body?.innerText || '').replace(/\s+/g, ' ').trim()
+    text = (document.body?.textContent || '').replace(/\s+/g, ' ').trim()
   }
 
   const parts = [`Page: ${title}`]
@@ -109,10 +109,20 @@ function executeAction(action: {
       if (form) form.requestSubmit()
     }
   } else if (action.type === 'fill_input') {
-    const el = document.querySelector(action.selector!) as HTMLInputElement
+    const el = document.querySelector(action.selector!) as HTMLInputElement | HTMLTextAreaElement
     if (!el) throw new Error(`Element not found: ${action.selector}`)
     el.focus()
-    el.value = action.value || ''
+    // Use the native prototype setter so React/Vue synthetic event tracking is triggered.
+    // Direct assignment (el.value = ...) bypasses framework internals and the input appears unchanged.
+    const proto = el instanceof HTMLTextAreaElement
+      ? window.HTMLTextAreaElement.prototype
+      : window.HTMLInputElement.prototype
+    const nativeSetter = Object.getOwnPropertyDescriptor(proto, 'value')?.set
+    if (nativeSetter) {
+      nativeSetter.call(el, action.value || '')
+    } else {
+      el.value = action.value || ''
+    }
     el.dispatchEvent(new Event('input', { bubbles: true }))
     el.dispatchEvent(new Event('change', { bubbles: true }))
   } else if (action.type === 'press_enter') {

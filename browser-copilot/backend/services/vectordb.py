@@ -32,6 +32,6 @@ def search_pages(query: str, n_results: int = 3):
     metas = results.get("metadatas", [[]])[0]
 
     return [
-        {"content": doc[:2000], "title": meta.get("title", ""), "url": meta.get("url", "")}
+        {"content": doc[:4000], "title": meta.get("title", ""), "url": meta.get("url", "")}
         for doc, meta in zip(docs, metas)
     ]

@@ -8,7 +8,7 @@ client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 
 def ask_gemini(question: str, page_content: str, memory_results: list = []) -> str:
-    trimmed_content = page_content[:4000]
+    trimmed_content = page_content[:12000]
 
     # Build memory context from RAG results
     memory_context = ""
