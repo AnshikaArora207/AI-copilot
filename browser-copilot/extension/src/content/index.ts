@@ -29,11 +29,25 @@ function getUniqueSelector(el: Element): string {
 // ─── DOM Extraction ──────────────────────────────────────────────────────────
 
 function extractPageText(): string {
+  const title = document.title
+  const metaDesc =
+    document.querySelector('meta[name="description"]')?.getAttribute('content') || ''
+
   const clone = document.cloneNode(true) as Document
-  clone.querySelectorAll('script, style, nav, footer, header, aside, noscript').forEach((el) =>
-    el.remove()
-  )
-  return (clone.body?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 10000)
+  clone.querySelectorAll('script, style, noscript').forEach((el) => el.remove())
+
+  let text = (clone.body?.innerText || '').replace(/\s+/g, ' ').trim()
+
+  // For very minimal pages (e.g. Google homepage), use full body text
+  if (text.length < 100) {
+    text = (document.body?.innerText || '').replace(/\s+/g, ' ').trim()
+  }
+
+  const parts = [`Page: ${title}`]
+  if (metaDesc) parts.push(`Description: ${metaDesc}`)
+  if (text) parts.push(text)
+
+  return parts.join('\n').slice(0, 10000)
 }
 
 function extractInteractiveElements() {
