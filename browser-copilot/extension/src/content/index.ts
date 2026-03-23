@@ -92,6 +92,7 @@ function executeAction(action: {
   selector?: string
   value?: string
   direction?: string
+  url?: string
 }) {
   if (action.type === 'click_element') {
     const el = document.querySelector(action.selector!) as HTMLElement
@@ -124,6 +125,33 @@ function executeAction(action: {
     // Also try form submit
     const form = el.closest('form')
     if (form) form.requestSubmit()
+  } else if (action.type === 'navigate_to_url') {
+    if (!action.url) throw new Error('No URL provided')
+    window.location.href = action.url
+  } else if (action.type === 'select_option') {
+    const el = document.querySelector(action.selector!) as HTMLSelectElement
+    if (!el) throw new Error(`Element not found: ${action.selector}`)
+    // Try matching by value first, then by visible text
+    const option = Array.from(el.options).find(
+      (o) => o.value === action.value || o.text.toLowerCase() === (action.value || '').toLowerCase()
+    )
+    if (!option) throw new Error(`Option "${action.value}" not found in select`)
+    el.value = option.value
+    el.dispatchEvent(new Event('change', { bubbles: true }))
+  } else if (action.type === 'go_back') {
+    window.history.back()
+  } else if (action.type === 'go_forward') {
+    window.history.forward()
+  } else if (action.type === 'reload_page') {
+    window.location.reload()
+  } else if (action.type === 'scroll_to_element') {
+    const el = document.querySelector(action.selector!)
+    if (!el) throw new Error(`Element not found: ${action.selector}`)
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  } else if (action.type === 'copy_text') {
+    const el = document.querySelector(action.selector!)
+    if (!el) throw new Error(`Element not found: ${action.selector}`)
+    navigator.clipboard.writeText((el as HTMLElement).innerText || el.textContent || '')
   } else if (action.type === 'scroll_page') {
     window.scrollBy({ top: action.direction === 'down' ? 600 : -600, behavior: 'smooth' })
   }

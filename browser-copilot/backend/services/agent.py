@@ -57,6 +57,27 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "navigate_to_url",
+            "description": "Navigate the browser to a URL. Use this to open links instead of clicking them - more reliable for search results and tracked links.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "The full URL or href to navigate to",
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Human readable description of where we are navigating",
+                    },
+                },
+                "required": ["url", "description"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "press_enter",
             "description": "Press the Enter key on an input field to submit a search or form. Use this instead of clicking a search button when possible.",
             "parameters": {
@@ -79,7 +100,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "scroll_page",
-            "description": "Scroll the page up or down",
+            "description": "Scroll the page up or down by a fixed amount",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -94,6 +115,124 @@ TOOLS = [
                     },
                 },
                 "required": ["direction", "description"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "select_option",
+            "description": "Select an option from a dropdown (<select> element) by its visible text or value",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "selector": {
+                        "type": "string",
+                        "description": "CSS selector of the <select> element",
+                    },
+                    "value": {
+                        "type": "string",
+                        "description": "The option text or value to select",
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Human readable description of what is being selected",
+                    },
+                },
+                "required": ["selector", "value", "description"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "go_back",
+            "description": "Navigate to the previous page in browser history (like clicking the back button)",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "description": {
+                        "type": "string",
+                        "description": "Human readable description of the action",
+                    },
+                },
+                "required": ["description"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "go_forward",
+            "description": "Navigate to the next page in browser history (like clicking the forward button)",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "description": {
+                        "type": "string",
+                        "description": "Human readable description of the action",
+                    },
+                },
+                "required": ["description"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "reload_page",
+            "description": "Reload/refresh the current page",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "description": {
+                        "type": "string",
+                        "description": "Human readable description of the action",
+                    },
+                },
+                "required": ["description"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "scroll_to_element",
+            "description": "Scroll the page until a specific element is visible in the viewport. Use before clicking elements that may be off-screen.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "selector": {
+                        "type": "string",
+                        "description": "CSS selector of the element to scroll to",
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Human readable description of what we are scrolling to",
+                    },
+                },
+                "required": ["selector", "description"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "copy_text",
+            "description": "Copy the text content of an element to the clipboard",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "selector": {
+                        "type": "string",
+                        "description": "CSS selector of the element whose text to copy",
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Human readable description of what is being copied",
+                    },
+                },
+                "required": ["selector", "description"],
             },
         },
     },
@@ -121,6 +260,7 @@ Choose the most appropriate elements based on their text, type, placeholder, and
 IMPORTANT RULES:
 - When performing any search action, ALWAYS use fill_input followed immediately by press_enter on the same input element. Never stop after just filling a search box.
 - Only use click_element for non-search buttons (like subscribe, login, submit forms, etc.).
+- When the user wants to open or navigate to a link, ALWAYS use navigate_to_url with the link's href instead of click_element. Extract the href from the links list provided.
 - If you cannot find a suitable element for the requested action, respond with a plain text message explaining why - do NOT call any tools."""
 
     response = client.chat.completions.create(
