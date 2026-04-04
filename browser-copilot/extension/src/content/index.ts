@@ -1,6 +1,6 @@
 // ─── Selector Helper ────────────────────────────────────────────────────────
 
-function getUniqueSelector(el: Element): string {
+export function getUniqueSelector(el: Element): string {
   if (el.id) return `#${CSS.escape(el.id)}`
   if (el.getAttribute('name')) return `[name="${el.getAttribute('name')}"]`
 
@@ -28,7 +28,7 @@ function getUniqueSelector(el: Element): string {
 
 // ─── DOM Extraction ──────────────────────────────────────────────────────────
 
-function extractPageText(): string {
+export function extractPageText(): string {
   const title = document.title
   const metaDesc =
     document.querySelector('meta[name="description"]')?.getAttribute('content') || ''
@@ -50,7 +50,7 @@ function extractPageText(): string {
   return parts.join('\n').slice(0, 10000)
 }
 
-function extractInteractiveElements() {
+export function extractInteractiveElements() {
   const inputs = Array.from(
     document.querySelectorAll('input:not([type="hidden"]), textarea, select')
   )
@@ -87,7 +87,7 @@ function extractInteractiveElements() {
 
 // ─── Action Executor ─────────────────────────────────────────────────────────
 
-function executeAction(action: {
+export function executeAction(action: {
   type: string
   selector?: string
   value?: string
