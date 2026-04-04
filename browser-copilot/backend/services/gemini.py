@@ -7,8 +7,15 @@ load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 
-def ask_gemini(question: str, page_content: str, memory_results: list = []) -> str:
+def ask_gemini(question: str, page_content: str, memory_results: list = [], page_url: str = "", page_title: str = "") -> str:
     trimmed_content = page_content[:12000]
+
+    # Build current page header
+    page_header = ""
+    if page_title:
+        page_header += f"Title: {page_title}\n"
+    if page_url:
+        page_header += f"URL: {page_url}\n"
 
     # Build memory context from RAG results
     memory_context = ""
@@ -19,8 +26,8 @@ def ask_gemini(question: str, page_content: str, memory_results: list = []) -> s
 
     prompt = f"""You are a helpful AI assistant embedded in a browser extension.
 
-CURRENT PAGE CONTENT:
----
+CURRENT PAGE:
+{page_header}---
 {trimmed_content}
 ---
 {memory_context}

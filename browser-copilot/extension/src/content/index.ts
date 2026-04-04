@@ -17,7 +17,7 @@ function getUniqueSelector(el: Element): string {
     if (parent) {
       const siblings = Array.from(parent.querySelectorAll(`:scope > ${selector}`))
       if (siblings.length > 1) {
-        selector += `:nth-child(${siblings.indexOf(current) + 1})`
+        selector += `:nth-of-type(${siblings.indexOf(current) + 1})`
       }
     }
     parts.unshift(selector)

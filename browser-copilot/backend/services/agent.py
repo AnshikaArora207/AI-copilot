@@ -230,6 +230,7 @@ IMPORTANT RULES:
         messages=[{"role": "user", "content": prompt}],
         tools=TOOLS,
         tool_choice="auto",
+        timeout=30,
     )
 
     message = response.choices[0].message
@@ -238,10 +239,17 @@ IMPORTANT RULES:
     if not message.tool_calls:
         return [{"type": "message", "text": message.content}]
 
-    # Convert tool calls to action list
+    # Convert tool calls to action list (cap at 10 to prevent runaway sequences)
     actions = []
-    for tool_call in message.tool_calls:
-        args = json.loads(tool_call.function.arguments)
+    for tool_call in message.tool_calls[:10]:
+        try:
+            args = json.loads(tool_call.function.arguments)
+        except (json.JSONDecodeError, ValueError):
+            # Skip malformed tool call rather than crashing
+            continue
         actions.append({"type": tool_call.function.name, **args})
+
+    if not actions:
+        return [{"type": "message", "text": "Could not parse the required actions. Please try rephrasing your command."}]
 
     return actions

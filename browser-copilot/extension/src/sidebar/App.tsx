@@ -51,6 +51,14 @@ function App() {
     }
   }
 
+  // ── Delay helper: navigation actions need longer wait for page to load ───────
+
+  const delayForAction = (type: string) => {
+    const navigationActions = ['navigate_to_url', 'go_back', 'go_forward', 'reload_page']
+    const ms = navigationActions.includes(type) ? 2000 : 800
+    return new Promise((r) => setTimeout(r, ms))
+  }
+
   // ── Ask mode ────────────────────────────────────────────────────────────────
 
   const handleAsk = async (question: string) => {
@@ -60,7 +68,13 @@ function App() {
       const response = await fetch(`${BACKEND_URL}/ask`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question, page_content: pageData?.content || '' }),
+        body: JSON.stringify({
+          question,
+          page_content: pageData?.content || '',
+          page_url: pageData?.url || '',
+          page_title: pageData?.title || '',
+        }),
+        signal: AbortSignal.timeout(30000),
       })
 
       if (!response.ok) throw new Error('Backend error')
@@ -83,6 +97,7 @@ function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ command, dom_structure: pageData?.domStructure || {} }),
+        signal: AbortSignal.timeout(30000),
       })
 
       if (!response.ok) throw new Error('Backend error')
@@ -96,24 +111,37 @@ function App() {
       }
 
       // Show planned steps
-      const plan = actions.map((a) => `• ${a.description || a.type}`).join('\n')
+      const plan = actions.map((a, i) => `${i + 1}. ${a.description || a.type}`).join('\n')
       addMessage(`Executing ${actions.length} step(s):\n${plan}`, 'assistant', true)
 
       // Get active tab and execute actions one by one
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
       if (!tab.id) throw new Error('No active tab found')
 
+      const results: string[] = []
       for (const action of actions) {
         if (action.type === 'message') continue
-        await chrome.tabs.sendMessage(tab.id, { type: 'EXECUTE_ACTION', action })
-        await new Promise((r) => setTimeout(r, 600)) // delay between steps
+        const result = await chrome.tabs.sendMessage(tab.id, { type: 'EXECUTE_ACTION', action })
+        if (result?.success === false) {
+          const errMsg = result.error || 'Unknown error'
+          results.push(`Step failed: ${action.description || action.type} — ${errMsg}`)
+          addMessage(results.join('\n'), 'assistant', true)
+          return
+        }
+        await delayForAction(action.type)
       }
 
       addMessage('Done.', 'assistant', true)
       setBackendError(false)
-    } catch {
-      setBackendError(true)
-      addMessage('Error executing actions. Make sure the backend is running.', 'assistant')
+    } catch (err) {
+      const isBackendErr = err instanceof TypeError || (err instanceof Error && err.name !== 'AbortError')
+      if (isBackendErr) setBackendError(true)
+      addMessage(
+        isBackendErr
+          ? 'Error executing actions. Make sure the backend is running.'
+          : 'Action timed out. The page may be slow.',
+        'assistant'
+      )
     }
   }
 

@@ -1,4 +1,5 @@
 import chromadb
+import time
 
 # PersistentClient stores embeddings to disk - survives backend restarts
 client = chromadb.PersistentClient(path="./chroma_data")
@@ -10,7 +11,7 @@ def store_page(url: str, title: str, content: str):
     # Upsert so revisiting the same URL updates instead of duplicating
     collection.upsert(
         documents=[content],
-        metadatas=[{"url": url, "title": title}],
+        metadatas=[{"url": url, "title": title, "visited_at": int(time.time())}],
         ids=[url],
     )
 
@@ -32,6 +33,11 @@ def search_pages(query: str, n_results: int = 3):
     metas = results.get("metadatas", [[]])[0]
 
     return [
-        {"content": doc[:4000], "title": meta.get("title", ""), "url": meta.get("url", "")}
+        {
+            "content": doc[:4000],
+            "title": meta.get("title", ""),
+            "url": meta.get("url", ""),
+            "visited_at": meta.get("visited_at", 0),
+        }
         for doc, meta in zip(docs, metas)
     ]
